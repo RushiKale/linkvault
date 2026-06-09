@@ -295,6 +295,43 @@ public class SeedConfig {
                     }
                 }
             }
+            // --- Update team member names (runs every startup, idempotent) ---
+            userRepository.findByEmail("admin@test.com").ifPresent(u -> {
+                if (!"Pooja".equals(u.getFirstName()) || !"J".equals(u.getLastName())) {
+                    u.setFirstName("Pooja");
+                    u.setLastName("J");
+                    userRepository.save(u);
+                }
+            });
+            userRepository.findByEmail("member@test.com").ifPresent(u -> {
+                if (!"Vitthal".equals(u.getFirstName()) || !"P".equals(u.getLastName())) {
+                    u.setFirstName("Vitthal");
+                    u.setLastName("P");
+                    userRepository.save(u);
+                }
+            });
+            // Create Rushikesh K as a team MEMBER if not exists
+            userRepository.findByEmail("rushikesh@test.com").orElseGet(() -> {
+                User u = userRepository.save(
+                    new User("rushikesh@test.com", passwordEncoder.encode("password123"), "Rushikesh", "K")
+                );
+                final String uid = u.getId();
+                // Create personal collections
+                String[][] defaults = {
+                    {"Private", "#1a1a2e", "1"},
+                    {"Learning", "#16213e", "2"}
+                };
+                for (String[] col : defaults) {
+                    Collection c = new Collection(uid, col[0], col[1],
+                            Integer.parseInt(col[2]), col[0].equals("Private"));
+                    collectionRepository.save(c);
+                }
+                // Add to RevEx team as MEMBER
+                teamRepository.findBySlug("revex").ifPresent(team -> {
+                    teamMemberRepository.save(new TeamMember(team.getId(), uid, TeamMember.TeamRole.MEMBER));
+                });
+                return u;
+            });
         };
     }
 }
