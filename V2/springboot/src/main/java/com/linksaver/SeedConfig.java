@@ -57,10 +57,28 @@ public class SeedConfig {
                                 collectionRepository.delete(pc);
                             }
                         }
-                        if (!adminPublic.isLocked()) {
+                                if (!adminPublic.isLocked()) {
                             adminPublic.setLocked(true);
                             collectionRepository.save(adminPublic);
                         }
+                    }
+                }
+                // --- Migration: Remove team-scoped "Public" collections, move their links to org-wide Public ---
+                List<Collection> teamPublics = collectionRepository.findAll().stream()
+                        .filter(c -> c.getTeamId() != null && "Public".equals(c.getName()))
+                        .collect(Collectors.toList());
+                if (!teamPublics.isEmpty()) {
+                    for (Collection tp : teamPublics) {
+                        Collection orgPublic = collectionRepository.findByNameAndTeamIdIsNull("Public")
+                                .stream().findFirst().orElse(null);
+                        if (orgPublic != null) {
+                            Query moveQuery = entityManager.createNativeQuery(
+                                    "UPDATE links SET collection_id = :targetId WHERE collection_id = :oldId");
+                            moveQuery.setParameter("targetId", orgPublic.getId());
+                            moveQuery.setParameter("oldId", tp.getId());
+                            moveQuery.executeUpdate();
+                        }
+                        collectionRepository.delete(tp);
                     }
                 }
                 return null;
@@ -217,10 +235,9 @@ public class SeedConfig {
                 TeamProject project = new TeamProject(team.getId(), "RevEx", "RevEx project", masterUser.getId());
                 teamProjectRepository.save(project);
 
-                // Create team-scoped default collections
+                // Create team-scoped default collections (no separate Public — org-wide Public is shared)
                 String[][] teamDefaults = {
                     {"Private", "#1a1a2e", "1", "true"},
-                    {"Public", "#6366f1", "0", "true"},
                     {"RevEx", "#10b981", "2", "false"},
                 };
                 for (String[] col : teamDefaults) {
@@ -273,15 +290,14 @@ public class SeedConfig {
                 }
                 teamMemberRepository.save(new TeamMember(team.getId(), memberUser.getId(), TeamMember.TeamRole.MEMBER));
 
-                // Create team project links for RevEx
+                // Create team project links for RevEx (all in RevEx collection, org-wide Public is shared separately)
                 Collection revExCol = collectionRepository.findByUserIdAndTeamIdAndName(masterUser.getId(), team.getId(), "RevEx").orElse(null);
-                Collection teamPublicCol = collectionRepository.findByUserIdAndTeamIdAndName(masterUser.getId(), team.getId(), "Public").orElse(null);
                 if (revExCol != null) {
                     String[][] teamLinks = {
                         {"https://github.com", "GitHub", "Code hosting platform", revExCol.getId()},
                         {"https://vercel.com", "Vercel", "Deployment platform", revExCol.getId()},
-                        {"https://linear.app", "Linear", "Project management", teamPublicCol != null ? teamPublicCol.getId() : revExCol.getId()},
-                        {"https://postman.com", "Postman", "API testing", teamPublicCol != null ? teamPublicCol.getId() : revExCol.getId()},
+                        {"https://linear.app", "Linear", "Project management", revExCol.getId()},
+                        {"https://postman.com", "Postman", "API testing", revExCol.getId()},
                     };
                     for (String[] linkData : teamLinks) {
                         Link l = new Link();
