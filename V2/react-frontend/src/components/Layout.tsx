@@ -227,17 +227,18 @@ export default function Layout() {
                     </span>
                   </div>
                   {teams.map(t => {
-                    const activeCollectionId = new URLSearchParams(location.search).get('collectionId')
-                    const teamCol = collections.find(c => c.teamId === t.id && c.name === t.name)
-                    const targetId = teamCol?.id
+                    const searchCollectionId = new URLSearchParams(location.search).get('collectionId')
+                    const teamCols = collections.filter(c => c.teamId === t.id)
                     const isPending = t.role === 'PENDING'
+                    const teamProjectCol = teamCols.find(c => c.name === t.name)
+                    const mainTargetId = teamProjectCol?.id
                     return (
-                      <div key={t.id} className="group flex items-center gap-1">
+                      <div key={t.id} className="space-y-0.5">
                         <button
-                          onClick={() => targetId ? navigate(`/links?collectionId=${targetId}`) : navigate(`/teams/${t.id}`)}
+                          onClick={() => mainTargetId ? navigate(`/links?collectionId=${mainTargetId}`) : navigate(`/teams/${t.id}`)}
                           className={cn(
-                            'flex items-center gap-3 flex-1 w-full px-3 py-1.5 rounded-lg text-sm transition-colors text-left',
-                            !isPending && targetId && activeCollectionId === targetId
+                            'flex items-center gap-3 w-full px-3 py-1.5 rounded-lg text-sm transition-colors text-left',
+                            !isPending && mainTargetId && searchCollectionId === mainTargetId
                               ? 'bg-primary/10 text-primary'
                               : 'text-sidebar-foreground hover:bg-sidebar-muted/50'
                           )}
@@ -251,6 +252,23 @@ export default function Layout() {
                             </span>
                           )}
                         </button>
+                        {!isPending && teamCols.map(col => (
+                          col.name !== t.name && (
+                            <button
+                              key={col.id}
+                              onClick={() => navigate(`/links?collectionId=${col.id}`)}
+                              className={cn(
+                                'flex items-center gap-3 w-full pl-8 pr-3 py-1 rounded-lg text-xs transition-colors text-left',
+                                searchCollectionId === col.id
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'text-sidebar-foreground/70 hover:bg-sidebar-muted/50'
+                              )}
+                            >
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: col.color }} />
+                              <span className="truncate">{col.name}</span>
+                            </button>
+                          )
+                        ))}
                       </div>
                     )
                   })}
