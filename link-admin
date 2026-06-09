@@ -1,0 +1,368 @@
+#!/bin/bash
+set -e
+
+BASE="$HOME/my-links"
+MYSQL_CREDS="-u root -proot"
+DB_NAME="linkvault"
+
+ESC=$'\033'
+RED="${ESC}[0;31m"
+GREEN="${ESC}[0;32m"
+YELLOW="${ESC}[0;33m"
+CYAN="${ESC}[0;36m"
+BOLD="${ESC}[1;37m"
+NC="${ESC}[0m"
+
+die() {
+  echo "${RED}Error:${NC} $1" >&2
+  exit 1
+}
+
+warn() {
+  echo "${YELLOW}Warning:${NC} $1"
+}
+
+show_help() {
+  echo ""
+  echo "${BOLD}  ╔══════════════════════════════════════╗${NC}"
+  echo "${BOLD}  ║        LinkSaver Admin v2.0         ║${NC}"
+  echo "${BOLD}  ╚══════════════════════════════════════╝${NC}"
+  echo ""
+  echo "${YELLOW}  ▸ ${BOLD}Usage${NC}:  link-admin ${GREEN}[command]${NC} ${CYAN}[options]${NC}"
+  echo ""
+  echo "  ${BOLD}──────────── Commands ────────────${NC}"
+  echo ""
+  echo "  ${GREEN}  start${NC}  ${CYAN}[v1|v2]${NC}    Launch services"
+  echo "  ${GREEN}  stop${NC}   ${CYAN}[v1|v2]${NC}    Shutdown services"
+  echo "  ${GREEN}  logs${NC}   ${CYAN}[v1|v2] [srv]${NC}  Tail log files"
+  echo "  ${GREEN}  passwd${NC} ${CYAN}v1 <email> <pass>${NC}  Reset V1 password"
+  echo "  ${GREEN}  passwd${NC} ${CYAN}v2 <email> <pass>${NC}  Reset V2 password"
+  echo ""
+  echo "  ${BOLD}───────────── Shortcuts ────────────${NC}"
+  echo ""
+  echo "  ${GREEN}  link-admin start v2${NC}"
+  echo "  ${GREEN}  link-admin stop v2${NC}"
+  echo "  ${GREEN}  link-admin logs v2${NC}"
+  echo "  ${GREEN}  link-admin logs v2 backend${NC}"
+  echo "  ${GREEN}  link-admin logs${NC}"
+  echo "  ${GREEN}  link-admin passwd v2 user@e.com newpass${NC}"
+  echo "  ${GREEN}  link-admin passwd user@e.com newpass${NC}"
+  echo "  ${GREEN}  link-admin${NC}"
+  echo ""
+  echo "  ${BOLD}───────────── Ports ────────────${NC}"
+  echo ""
+  echo "  ${CYAN}  V1${NC}  NestJS API ${YELLOW}:2001${NC}  │  Next.js ${YELLOW}:2000${NC}"
+  echo "  ${CYAN}  V2${NC}  Spring Boot ${YELLOW}:8080${NC}  │  React ${YELLOW}:3000${NC}"
+  echo ""
+  exit 0
+}
+
+# --- MySQL ---
+
+ensure_mysql() {
+  echo "Ensuring MySQL is running..."
+  if ! mysqladmin ping $MYSQL_CREDS --silent 2>/dev/null; then
+    echo "${YELLOW}MySQL not running, attempting to start...${NC}"
+    brew services start mysql 2>/dev/null || die "MySQL is not installed. Run: brew install mysql"
+    sleep 2
+  fi
+  mysql $MYSQL_CREDS -e "CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" 2>/dev/null
+}
+
+# --- V1 ---
+
+start_v1() {
+  echo "Starting V1 backend (NestJS)..."
+  cd "$BASE/V1/backend"
+  nohup npm run start:prod > /tmp/linkvault-v1-backend.log 2>&1 &
+  echo $! > /tmp/linkvault-v1-backend.pid
+  disown
+
+  cd "$BASE"
+  echo "Starting V1 web (Next.js)..."
+  cd "$BASE/V1/web"
+  nohup npm start > /tmp/linkvault-v1-web.log 2>&1 &
+  echo $! > /tmp/linkvault-v1-web.pid
+  disown
+
+  cd "$BASE"
+  echo ""
+  echo "${GREEN}V1 started:${NC}"
+  echo "  Web:     ${CYAN}http://localhost:2000${NC}"
+  echo "  API:     ${CYAN}http://localhost:2001${NC}"
+  echo "  Logs:    ${YELLOW}tail -f /tmp/linkvault-v1-*.log${NC}"
+}
+
+# --- V2 ---
+
+start_v2() {
+  JAR="$BASE/V2/springboot/target/linksaver-backend-1.0.0.jar"
+
+  if [ ! -f "$JAR" ]; then
+    echo "Building V2 backend (Spring Boot)..."
+    cd "$BASE/V2/springboot"
+    ./mvnw package -DskipTests -q
+    cd "$BASE"
+  fi
+
+  echo "Starting V2 backend (Spring Boot)..."
+  nohup java -jar "$JAR" > /tmp/linkvault-v2-backend.log 2>&1 &
+  echo $! > /tmp/linkvault-v2-backend.pid
+  disown
+
+  echo "Starting V2 frontend (React)..."
+  cd "$BASE/V2/react-frontend"
+  nohup npx vite --port 3000 > /tmp/linkvault-v2-frontend.log 2>&1 &
+  echo $! > /tmp/linkvault-v2-frontend.pid
+  disown
+
+  cd "$BASE"
+  echo ""
+  echo "${GREEN}V2 started:${NC}"
+  echo "  Frontend: ${CYAN}http://localhost:3000${NC}"
+  echo "  API:      ${CYAN}http://localhost:8080${NC}"
+  echo "  Logs:     ${YELLOW}tail -f /tmp/linkvault-v2-*.log${NC}"
+}
+
+# --- Stop ---
+
+stop_v1() {
+  echo "Stopping V1..."
+  for name in backend web; do
+    pid_file="/tmp/linkvault-v1-$name.pid"
+    if [ -f "$pid_file" ]; then
+      kill "$(cat "$pid_file")" 2>/dev/null && echo "  ${GREEN}V1 $name stopped${NC}" || warn "V1 $name not running"
+      rm -f "$pid_file"
+    fi
+  done
+  pkill -f "node dist/main" 2>/dev/null || true
+  pkill -f "next start" 2>/dev/null || true
+  echo "${GREEN}V1 stopped.${NC}"
+}
+
+stop_v2() {
+  echo "Stopping V2..."
+  for name in backend frontend; do
+    pid_file="/tmp/linkvault-v2-$name.pid"
+    if [ -f "$pid_file" ]; then
+      kill "$(cat "$pid_file")" 2>/dev/null && echo "  ${GREEN}V2 $name stopped${NC}" || warn "V2 $name not running"
+      rm -f "$pid_file"
+    fi
+  done
+  pkill -f "linksaver-backend" 2>/dev/null || true
+  pkill -f "vite" 2>/dev/null || true
+  echo "${GREEN}V2 stopped.${NC}"
+}
+
+# --- Logs ---
+
+logs_v1() {
+  local service="$1"
+  case "$service" in
+    backend) tail -f /tmp/linkvault-v1-backend.log ;;
+    web)     tail -f /tmp/linkvault-v1-web.log ;;
+    *)       tail -f /tmp/linkvault-v1-backend.log /tmp/linkvault-v1-web.log ;;
+  esac
+}
+
+logs_v2() {
+  local service="$1"
+  case "$service" in
+    backend)  tail -f /tmp/linkvault-v2-backend.log ;;
+    frontend) tail -f /tmp/linkvault-v2-frontend.log ;;
+    *)        tail -f /tmp/linkvault-v2-backend.log /tmp/linkvault-v2-frontend.log ;;
+  esac
+}
+
+# --- Password ---
+
+reset_passwd() {
+  V="$1"
+  EMAIL="$2"
+  PASS="$3"
+
+  BCRYPTJS="$BASE/V1/backend/node_modules/bcryptjs"
+  if [ ! -d "$BCRYPTJS" ]; then
+    die "bcryptjs not found at $BCRYPTJS. Run 'npm install' in V1/backend first."
+  fi
+
+  HASH=$(node -e "const b=require('$BCRYPTJS');b.hash('$PASS',12).then(h=>console.log(h))")
+  mysql $MYSQL_CREDS -e "UPDATE $DB_NAME.users SET password_hash='$HASH' WHERE email='$EMAIL'"
+  echo "${GREEN}Password reset for $EMAIL${NC}"
+}
+
+# --- Interactive helpers ---
+
+choose_version() {
+  local prompt="$1"
+  echo ""
+  echo "${BOLD}Which version?${NC}"
+  echo "  1) V1  — NestJS API (2001) + Next.js web (2000)"
+  echo "  2) V2  — Spring Boot API (8080) + React frontend (3000)"
+  echo -n "Choice [1-2]: "
+  read -r ver
+  case "$ver" in
+    1) echo "v1" ;;
+    2) echo "v2" ;;
+    *)
+      warn "Invalid choice '$ver', defaulting to V1"
+      echo "v1"
+      ;;
+  esac
+}
+
+# --- Non-interactive mode ---
+
+if [ $# -ge 1 ]; then
+  CMD="$1"
+  ARG1="$2"
+  ARG2="$3"
+  ARG3="$4"
+
+  case "$CMD" in
+    -h|--help|help)
+      show_help
+      ;;
+    start)
+      V="${ARG1:-v1}"
+      ensure_mysql
+      if [ "$V" = "v2" ]; then
+        start_v2
+      elif [ "$V" = "v1" ]; then
+        start_v1
+      else
+        echo "${RED}Invalid version:${NC} $V" >&2
+        echo "  ${YELLOW}Usage:${NC} link-admin start ${CYAN}[v1|v2]${NC}" >&2
+        echo "  ${YELLOW}Examples:${NC}" >&2
+        echo "    link-admin start" >&2
+        echo "    link-admin start v2" >&2
+        exit 1
+      fi
+      ;;
+    stop)
+      V="${ARG1:-v1}"
+      if [ "$V" = "v2" ]; then
+        stop_v2
+      elif [ "$V" = "v1" ]; then
+        stop_v1
+      else
+        echo "${RED}Invalid version:${NC} $V" >&2
+        echo "  ${YELLOW}Usage:${NC} link-admin stop ${CYAN}[v1|v2]${NC}" >&2
+        echo "  ${YELLOW}Examples:${NC}" >&2
+        echo "    link-admin stop" >&2
+        echo "    link-admin stop v2" >&2
+        exit 1
+      fi
+      ;;
+    logs)
+      V="${ARG1:-v1}"
+      SERVICE="$ARG2"
+      if [ "$V" = "v2" ]; then
+        logs_v2 "$SERVICE"
+      elif [ "$V" = "v1" ]; then
+        logs_v1 "$SERVICE"
+      else
+        echo "${RED}Invalid version:${NC} $V" >&2
+        echo "  ${YELLOW}Usage:${NC} link-admin logs ${CYAN}[v1|v2] [service]${NC}" >&2
+        echo "  ${YELLOW}Examples:${NC}" >&2
+        echo "    link-admin logs" >&2
+        echo "    link-admin logs v2" >&2
+        echo "    link-admin logs v2 backend" >&2
+        exit 1
+      fi
+      ;;
+    passwd)
+      if [ "$ARG1" = "v2" ]; then
+        if [ -z "$ARG2" ] || [ -z "$ARG3" ]; then
+          echo "${RED}Missing arguments.${NC}" >&2
+          echo "  ${YELLOW}Usage:${NC} link-admin passwd v2 ${CYAN}<email> <password>${NC}" >&2
+          echo "  ${YELLOW}Example:${NC} link-admin passwd v2 user@e.com newpass" >&2
+          exit 1
+        fi
+        reset_passwd "v2" "$ARG2" "$ARG3"
+      elif [ "$ARG1" = "v1" ]; then
+        if [ -z "$ARG2" ]; then
+          echo "${RED}Missing arguments.${NC}" >&2
+          echo "  ${YELLOW}Usage:${NC} link-admin passwd v1 ${CYAN}<email> <password>${NC}" >&2
+          echo "  ${YELLOW}Example:${NC} link-admin passwd v1 user@e.com newpass" >&2
+          exit 1
+        fi
+        reset_passwd "v1" "$ARG2" "$ARG3"
+      else
+        if [ -z "$ARG2" ]; then
+          echo "${RED}Missing arguments.${NC}" >&2
+          echo "  ${YELLOW}Usage:${NC} link-admin passwd ${CYAN}[v1|v2] <email> <password>${NC}" >&2
+          echo "  ${YELLOW}Examples:${NC}" >&2
+          echo "    link-admin passwd user@e.com newpass" >&2
+          echo "    link-admin passwd v2 user@e.com newpass" >&2
+          exit 1
+        fi
+        reset_passwd "v1" "$ARG1" "$ARG2"
+      fi
+      ;;
+    *)
+      echo "${RED}Unknown command:${NC} $CMD" >&2
+      echo "" >&2
+      show_help
+      ;;
+  esac
+  exit 0
+fi
+
+# --- Interactive mode ---
+
+echo ""
+echo "${BOLD}=== LinkSaver Admin ===${NC}"
+echo "What would you like to do?"
+echo "  1) ${GREEN}Start${NC} services"
+echo "  2) ${RED}Stop${NC} services"
+echo "  3) ${CYAN}View logs${NC}"
+echo "  4) ${YELLOW}Reset password${NC}"
+echo -n "Choice [1-4]: "
+read -r action
+
+  case "$action" in
+    1)
+      V=$(choose_version "start")
+      ensure_mysql
+      if [ "$V" = "v2" ]; then start_v2; else start_v1; fi
+      ;;
+    2)
+      V=$(choose_version "stop")
+      if [ "$V" = "v2" ]; then stop_v2; else stop_v1; fi
+      ;;
+    3)
+      V=$(choose_version "logs")
+      if [ "$V" = "v2" ]; then logs_v2; else logs_v1; fi
+      ;;
+    4)
+    echo ""
+    echo "${BOLD}Which version's password to reset?${NC}"
+    echo "  1) V1"
+    echo "  2) V2"
+    echo -n "Choice [1-2]: "
+    read -r ver
+    case "$ver" in
+      2) V="v2" ;;
+      1) V="v1" ;;
+      *)
+        warn "Invalid choice '$ver', defaulting to V1"
+        V="v1"
+        ;;
+    esac
+    echo -n "Email: "
+    read -r email
+    echo -n "New password: "
+    read -rs pass
+    echo ""
+    if [ -z "$email" ] || [ -z "$pass" ]; then
+      die "Email and password cannot be empty."
+    fi
+    reset_passwd "$V" "$email" "$pass"
+    ;;
+  *)
+    echo "${RED}Invalid choice:${NC} $action" >&2
+    echo "  Choose 1, 2, 3, or 4." >&2
+    exit 1
+    ;;
+esac

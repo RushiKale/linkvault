@@ -1,0 +1,31 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/linkvault?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DB_USER:root}
+    password: ${DB_PASS:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /api-docs
+    operations-sorter: method
+
+app:
+  cors:
+    origins: ${CORS_ORIGINS:http://localhost:2000,http://localhost:3000,http://localhost:3001,chrome-extension://*}
+  jwt:
+    secret: ${JWT_SECRET:linksaver-jwt-secret-key-change-in-production-must-be-at-least-256-bits-long}
+    expiration: 365d

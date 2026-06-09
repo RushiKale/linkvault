@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>LinkSaver</title>
+  </head>
+  <body>
+    <div id="root">Loading...</div>
+    <div id="error-box" style="display:none;background:#1a1a2e;color:#ef4444;padding:20px;font-family:monospace;white-space:pre-wrap;max-height:100vh;overflow:auto"></div>
+    <script>
+      window.__onError = function(err) {
+        var el = document.getElementById('error-box');
+        var root = document.getElementById('root');
+        if (el) {
+          el.style.display = 'block';
+          el.textContent = err.stack || err.message || String(err);
+          root.style.display = 'none';
+        }
+      };
+      window.onerror = function(msg, url, line, col, err) {
+        window.__onError(err || {message: msg + ' at ' + url + ':' + line});
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        window.__onError(e.reason);
+      });
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

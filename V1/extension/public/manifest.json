@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "LinkSaver - Save & Organize Links",
+  "version": "1.0.0",
+  "description": "Save web pages, organize into collections, and access them from anywhere.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "contextMenus",
+    "commands",
+    "notifications"
+  ],
+  "host_permissions": ["http://localhost:2001/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Save to LinkSaver",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "commands": {
+    "search-links": {
+      "suggested_key": { "default": "Ctrl+Shift+K" },
+      "description": "Search your saved links"
+    }
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+}

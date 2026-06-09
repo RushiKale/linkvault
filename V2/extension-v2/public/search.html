@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src http://localhost:8080; style-src 'unsafe-inline' 'self'; img-src * data:;" />
+  <title>Search Links - LinkSaver</title>
+  <script type="module" src="search.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a2e;
+      text-decoration: none;
+    }
+    .header-logo {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      background: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .header-actions a {
+      font-size: 13px; color: #64748b;
+      text-decoration: none; padding: 6px 12px;
+      border-radius: 6px;
+    }
+    .header-actions a:hover { background: #f1f5f9; color: #1a1a2e; }
+    .header-actions .btn-primary { background: #1a1a2e; color: #fff; border-radius: 8px; }
+    .header-actions .btn-primary:hover { background: #2d2d4e; }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 24px;
+    }
+    .brand { text-align: center; margin-bottom: 32px; }
+    .brand h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+    .brand p { font-size: 14px; color: #64748b; }
+
+    .search-wrapper { width: 100%; max-width: 600px; position: relative; }
+    .search-input {
+      width: 100%;
+      padding: 14px 16px 14px 44px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      color: #1a1a2e;
+    }
+    .search-input:focus { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+    .search-input::placeholder { color: #94a3b8; }
+    .search-icon {
+      position: absolute; left: 14px; top: 50%;
+      transform: translateY(-50%);
+      width: 18px; height: 18px;
+      color: #94a3b8; pointer-events: none;
+    }
+    .search-hint { text-align: center; margin-top: 8px; font-size: 13px; color: #94a3b8; }
+
+    .tag-filter-area { width: 100%; max-width: 600px; margin-top: 12px; }
+    .tag-filter { width: 100%; }
+    .tag-filter-input {
+      width: 100%; padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 13px; outline: none;
+      background: #fff; color: #1a1a2e;
+      transition: border-color 0.15s;
+      box-sizing: border-box;
+    }
+    .tag-filter-input:focus { border-color: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,0.1); }
+    .tag-filter-input::placeholder { color: #94a3b8; }
+    .tag-filter-suggestions {
+      position: absolute; z-index: 20;
+      top: calc(100% + 4px); left: 0; right: 0;
+      background: #fff; border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .tag-filter-option {
+      width: 100%; text-align: left;
+      padding: 8px 12px; font-size: 13px;
+      background: none; border: none;
+      cursor: pointer; color: #1a1a2e;
+    }
+    .tag-filter-option:hover { background: #f8fafc; color: #ef4444; }
+    .tag-filter-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      background: #fef2f2; color: #dc2626;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .tag-filter-chip button {
+      background: none; border: none;
+      cursor: pointer; font-size: 16px;
+      color: #ef4444; padding: 0 2px;
+      line-height: 1;
+    }
+    .tag-filter-chip button:hover { color: #ef4444; }
+    .relative { position: relative; }
+    .result-tags {
+      display: flex; flex-wrap: wrap; gap: 3px;
+      margin-top: 3px;
+    }
+    .result-tag {
+      font-size: 10px; padding: 1px 6px;
+      border-radius: 3px;
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .results { width: 100%; max-width: 600px; margin-top: 12px; }
+    .result-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+      text-decoration: none; color: inherit;
+    }
+    .result-item:hover { background: #f8fafc; border-color: #d1d5db; }
+    .result-item + .result-item { margin-top: 6px; }
+    .result-favicon { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+    .result-favicon-placeholder { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+    .result-info { flex: 1; min-width: 0; }
+    .result-title { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-url { font-size: 12px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-collection { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; flex-shrink: 0; }
+    .results-empty { padding: 40px 16px; text-align: center; color: #94a3b8; font-size: 14px; }
+    .results-loading { padding: 24px; text-align: center; color: #94a3b8; font-size: 14px; }
+
+    .auth-box { text-align: center; padding: 60px 24px; }
+    .auth-box h2 { font-size: 22px; margin-bottom: 8px; }
+    .auth-box p { font-size: 14px; color: #64748b; margin-bottom: 24px; }
+    .auth-box a {
+      display: inline-block; padding: 10px 24px;
+      background: #1a1a2e; color: #fff;
+      border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: 500;
+    }
+    .auth-box a:hover { background: #2d2d4e; }
+
+    .footer { text-align: center; padding: 16px 24px; font-size: 12px; color: #94a3b8; }
+    .footer a { color: #ef4444; text-decoration: none; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="http://localhost:3000/dashboard" target="_blank" class="header-brand">
+      <div class="header-logo">L</div>
+      LinkSaver
+    </a>
+    <div class="header-actions">
+      <a href="http://localhost:3000" target="_blank">Dashboard</a>
+      <a href="http://localhost:3000" target="_blank" class="btn-primary">Open LinkSaver</a>
+    </div>
+  </div>
+
+  <div class="main" id="main">
+    <div id="view-auth" class="auth-box hidden">
+      <h2>Welcome to LinkSaver</h2>
+      <p>Sign in to search your saved links</p>
+      <a href="http://localhost:3000/login" target="_blank">Sign In</a>
+    </div>
+
+    <div id="view-home">
+      <div class="brand">
+        <h1>LinkSaver</h1>
+        <p>Search your saved links</p>
+      </div>
+      <div class="search-wrapper">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search-input" class="search-input" type="text" placeholder="Search your links..." autofocus autocomplete="off" />
+      </div>
+      <div class="tag-filter-area">
+        <div id="tag-filter" class="tag-filter relative">
+          <input id="tag-filter-input" class="tag-filter-input" type="text" placeholder="Filter by tag..." autocomplete="off" />
+          <div id="tag-filter-suggestions" class="tag-filter-suggestions hidden"></div>
+        </div>
+        <div id="tag-filter-chip" class="tag-filter-chip hidden">
+          <span>tag: <strong id="tag-filter-chip-label"></strong></span>
+          <button id="tag-filter-chip-clear">&times;</button>
+        </div>
+      </div>
+      <p class="search-hint">Press <kbd>Esc</kbd> to clear &middot; Type to search across all your saved links</p>
+      <div id="results" class="results"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="http://localhost:3000/dashboard" target="_blank">Dashboard</a>
+  </div>
+</body>
+</html>

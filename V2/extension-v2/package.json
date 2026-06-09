@@ -1,0 +1,17 @@
+{
+  "name": "linkvault-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate-config": "node scripts/generate-config.mjs",
+    "prebuild": "npm run generate-config",
+    "build": "npm run generate-config && tsc && cp -r public/* dist/",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "sharp": "^0.34.5",
+    "typescript": "^5.5.0"
+  }
+}

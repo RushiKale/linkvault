@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  collections Collection[]
+  links       Link[]
+  favorites   Favorite[]
+  activityLogs ActivityLog[]
+  settings    Settings?
+
+  @@map("users")
+}
+
+model Collection {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  color     String   @default("#6366f1")
+  order     Int      @default(0)
+  locked    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links Link[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([name])
+  @@map("collections")
+}
+
+model Link {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  collectionId String    @map("collection_id")
+  title        String
+  url          String   @db.Text
+  description  String?  @db.Text
+  faviconUrl   String?  @db.Text @map("favicon_url")
+  imageUrl     String?  @db.Text @map("image_url")
+  notes        String?  @db.Text
+  openCount    Int       @default(0) @map("open_count")
+  lastOpenedAt DateTime? @map("last_opened_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  tags       LinkTag[]
+  favorites  Favorite[]
+
+  @@index([userId])
+  @@index([collectionId])
+  @@index([url(length: 255)])
+  @@index([userId, title])
+  @@map("links")
+}
+
+model Tag {
+  id    String   @id @default(cuid())
+  name  String   @unique
+  links LinkTag[]
+
+  @@map("tags")
+}
+
+model LinkTag {
+  linkId String @map("link_id")
+  tagId  String @map("tag_id")
+
+  link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([linkId, tagId])
+  @@map("link_tags")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  linkId    String   @map("link_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, linkId])
+  @@index([userId])
+  @@map("favorites")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("activity_logs")
+}
+
+model Settings {
+  id          String   @id @default(cuid())
+  userId      String   @unique @map("user_id")
+  theme       String   @default("system")
+  preferences Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}
